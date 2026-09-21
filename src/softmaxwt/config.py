@@ -212,31 +212,6 @@ def _format_validation_error(exc: ValidationError, path: Path) -> ConfigError:
 _LATEST_CONFIG_VERSION = 1.1
 
 
-def _upgrade_config(data: dict, notes: list[str]) -> None:
-    """Upgrade a pre-1.1 config dict in place, so old files keep loading.
-
-    1 -> 1.1: a profile's `init` script moves to `hooks.init` — or to
-    `hooks.background_init` when the old bool `init_background` flag was true
-    ("run `init` in the background"), preserving v1 behavior.
-    """
-    version = data.get("version", 1)
-    if not isinstance(version, (int, float)) or version >= _LATEST_CONFIG_VERSION:
-        return
-    for profile in (data.get("profiles") or {}).values():
-        if not isinstance(profile, dict):
-            continue
-        init = profile.pop("init", None)
-        background = profile.pop("init_background", False)
-        if init is not None:
-            profile["hooks"] = {"background_init" if background else "init": init}
-    data["version"] = _LATEST_CONFIG_VERSION
-    notes.append(
-        f"version {version} config upgraded in memory to {_LATEST_CONFIG_VERSION} "
-        "(init scripts live under `hooks:` now — see the README). "
-        "Update the file to silence this warning."
-    )
-
-
 class Config(_ConfigModel):
     """The wt config file, persisted as YAML at config_path()."""
 
@@ -256,7 +231,21 @@ class Config(_ConfigModel):
         notes: list[str] = []
         data = yaml.safe_load(path.read_text()) or {}
         if isinstance(data, dict):
-            _upgrade_config(data, notes)
+            version = data.get("version", 1)
+            if isinstance(version, (int, float)) and version < _LATEST_CONFIG_VERSION:
+                for profile in (data.get("profiles") or {}).values():
+                    if not isinstance(profile, dict):
+                        continue
+                    init = profile.pop("init", None)
+                    background = profile.pop("init_background", False)
+                    if init is not None:
+                        profile["hooks"] = {"background_init" if background else "init": init}
+                data["version"] = _LATEST_CONFIG_VERSION
+                notes.append(
+                    f"version {version} config upgraded in memory to {_LATEST_CONFIG_VERSION} "
+                    "(init scripts live under `hooks:` now — see the README). "
+                    "Update the file to silence this warning."
+                )
         try:
             config = cls.model_validate(
                 data,

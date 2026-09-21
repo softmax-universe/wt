@@ -1,7 +1,6 @@
 import os
 import shlex
 import subprocess
-from pathlib import Path
 from typing import Optional
 
 import typer
@@ -19,25 +18,6 @@ console = Console()
 def _stage(message: str) -> None:
     """Announce a top-level step of `create` so it stands out from command output."""
     console.print(f"\n[bold cyan]▸ {message}[/]")
-
-
-def _init_command(init_background: str, root: Path, worktree_path: Path) -> str:
-    """A self-contained `sh -c` string for the init_background snippet: exports the
-    create-time env, cds into the worktree, and prints a completion marker so the
-    surface it runs in shows when it finished (and its exit status) without
-    auto-closing."""
-    # The snippet runs in a subshell so an `exit` inside it sets $? instead of
-    # killing the marker line that reports completion.
-    script = (
-        f"export ROOT_REPO={shlex.quote(str(root))}\n"
-        f"export PARENT_BRANCH={shlex.quote(trunk_branch())}\n"
-        f"cd {shlex.quote(str(worktree_path))}\n"
-        f"(\n{init_background}\n)\n"
-        'status=$?; [ "$status" -eq 0 ] '
-        '&& echo "✅ init finished (exit 0)" '
-        '|| echo "❌ init failed (exit $status)"'
-    )
-    return shlex.join(["sh", "-c", script])
 
 
 @app.command()
@@ -117,7 +97,16 @@ def create(
     _stage(f"Opening worktree ({profile.opener.type.value})")
     init_command: Optional[str] = None
     if background is not None:
-        init_command = _init_command(background, root, worktree_path)
+        script = (
+            f"export ROOT_REPO={shlex.quote(str(root))}\n"
+            f"export PARENT_BRANCH={shlex.quote(trunk_branch())}\n"
+            f"cd {shlex.quote(str(worktree_path))}\n"
+            f"(\n{background}\n)\n"
+            'status=$?; [ "$status" -eq 0 ] '
+            '&& echo "✅ init finished (exit 0)" '
+            '|| echo "❌ init failed (exit $status)"'
+        )
+        init_command = shlex.join(["sh", "-c", script])
 
     opener = get_opener(profile.opener.type)
     opener.open(

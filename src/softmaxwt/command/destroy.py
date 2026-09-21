@@ -4,62 +4,13 @@ import typer
 from rich.console import Console
 
 from softmaxwt.app import app
-from softmaxwt.claude import ClaudeAgent, list_claude_agents
+from softmaxwt.claude import list_claude_agents
 from softmaxwt.graphite import GraphiteStatus
-from softmaxwt.isolation.common import IsolatedSession
 from softmaxwt.isolation.registry import all_isolation_backends
 from softmaxwt.opener.registry import all_openers
 from softmaxwt.worktree import Worktree, branch_exists, complete_worktree_name, find_worktree, git_root, trunk_branch
 
 console = Console()
-
-
-def _find_sessions(wt: Worktree) -> list[IsolatedSession]:
-    sessions: list[IsolatedSession] = []
-    for backend in all_isolation_backends():
-        sessions.extend(backend.list_sessions(wt.path))
-    return sessions
-
-
-def _print_warnings(wt: Worktree, sessions: list[IsolatedSession], agents: list[ClaudeAgent]) -> None:
-    if sessions:
-        console.print("  [yellow]Active sessions:[/]")
-        for s in sessions:
-            console.print(f"    - {s.description()}")
-
-    for agent in agents:
-        style = "red" if agent.is_active else "yellow"
-        console.print(f"  [{style}]Claude session {agent.label} ({agent.activity}) is running here[/]")
-
-    if wt.path.exists():
-        if wt.uncommitted_diff_stats() is not None:
-            console.print("  [red]Uncommitted changes in working copy[/]")
-
-    info = wt.graphite_info
-    if info is not None and info.status == GraphiteStatus.merged:
-        # Graphite says the PR is merged — local upstream/merge state is irrelevant.
-        return
-
-    no_upstream = wt.has_no_upstream()
-    if no_upstream:
-        console.print("  [red]Branch has no remote tracking branch (never pushed)[/]")
-
-    unmerged = wt.unmerged_commits()
-    if unmerged:
-        console.print(f"  [red]{len(unmerged)} commit(s) not merged to {trunk_branch()}:[/]")
-        for c in unmerged[:5]:
-            console.print(f"    - {c}")
-        if len(unmerged) > 5:
-            console.print(f"    ... and {len(unmerged) - 5} more")
-
-    if not no_upstream:
-        unpushed = wt.unpushed_commits()
-        if unpushed:
-            console.print(f"  [red]{len(unpushed)} commit(s) not pushed to remote:[/]")
-            for c in unpushed[:5]:
-                console.print(f"    - {c}")
-            if len(unpushed) > 5:
-                console.print(f"    ... and {len(unpushed) - 5} more")
 
 
 def _force_remove_dir(path) -> None:
@@ -137,10 +88,46 @@ def destroy(
         active = any(a.is_active for a in agents)
 
         if active or not wt.is_disposable():
-            sessions = _find_sessions(wt) if wt.path.exists() else []
+            sessions = []
+            if wt.path.exists():
+                for backend in all_isolation_backends():
+                    sessions.extend(backend.list_sessions(wt.path))
 
             console.print(f"About to destroy worktree [bold]{name}[/]:")
-            _print_warnings(wt, sessions, agents)
+            if sessions:
+                console.print("  [yellow]Active sessions:[/]")
+                for session in sessions:
+                    console.print(f"    - {session.description()}")
+
+            for agent in agents:
+                style = "red" if agent.is_active else "yellow"
+                console.print(f"  [{style}]Claude session {agent.label} ({agent.activity}) is running here[/]")
+
+            if wt.path.exists() and wt.uncommitted_diff_stats() is not None:
+                console.print("  [red]Uncommitted changes in working copy[/]")
+
+            info = wt.graphite_info
+            if info is None or info.status != GraphiteStatus.merged:
+                no_upstream = wt.has_no_upstream()
+                if no_upstream:
+                    console.print("  [red]Branch has no remote tracking branch (never pushed)[/]")
+
+                unmerged = wt.unmerged_commits()
+                if unmerged:
+                    console.print(f"  [red]{len(unmerged)} commit(s) not merged to {trunk_branch()}:[/]")
+                    for commit in unmerged[:5]:
+                        console.print(f"    - {commit}")
+                    if len(unmerged) > 5:
+                        console.print(f"    ... and {len(unmerged) - 5} more")
+
+                if not no_upstream:
+                    unpushed = wt.unpushed_commits()
+                    if unpushed:
+                        console.print(f"  [red]{len(unpushed)} commit(s) not pushed to remote:[/]")
+                        for commit in unpushed[:5]:
+                            console.print(f"    - {commit}")
+                        if len(unpushed) > 5:
+                            console.print(f"    ... and {len(unpushed) - 5} more")
             console.print()
 
             confirmation = typer.prompt("Type 'yes' to confirm")

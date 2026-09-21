@@ -115,7 +115,8 @@ TRACKED = ["main", "no-pr-branch", "open-branch", "merged-branch", "merging-bran
 
 def test_fetch_all_graphite_info_reads_cache(tmp_path):
     _write_graphite_cache(tmp_path, TRACKED, PR_INFO)
-    with patch("softmaxwt.graphite._git_common_dir", return_value=tmp_path):
+    with patch("softmaxwt.graphite.subprocess.run") as run:
+        run.return_value.stdout = str(tmp_path)
         info = fetch_all_graphite_info()
 
     assert info["open-branch"].status == GraphiteStatus.open
@@ -138,5 +139,6 @@ def test_fetch_all_graphite_info_reads_cache(tmp_path):
 
 def test_fetch_all_graphite_info_empty_without_cache(tmp_path):
     """No graphite metadata db (graphite never ran here) -> empty, not a crash."""
-    with patch("softmaxwt.graphite._git_common_dir", return_value=tmp_path):
+    with patch("softmaxwt.graphite.subprocess.run") as run:
+        run.return_value.stdout = str(tmp_path)
         assert fetch_all_graphite_info() == {}

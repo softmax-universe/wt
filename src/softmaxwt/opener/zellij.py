@@ -10,8 +10,6 @@ from softmaxwt.isolation.registry import get_isolation_backend
 from softmaxwt.opener.common import Opener
 from softmaxwt.shells import combine_scripts
 
-# --- thin zellij CLI wrappers (monkeypatched in tests) -------------------------
-#
 # Every `zellij action` is routed at an explicit --session so open/close never
 # depend on which session the calling client happens to be attached to. Tabs are
 # discovered by name (the tab is named after the worktree); pane placement rides
@@ -67,9 +65,6 @@ def _go_to_tab_id(session: str, tab_id: int) -> None:
 
 def _close_tab(session: str) -> None:
     _run(session, "action", "close-tab")
-
-
-# --- opener --------------------------------------------------------------------
 
 
 def build_commands(

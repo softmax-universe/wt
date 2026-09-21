@@ -45,47 +45,6 @@ class _PrInfoFile(BaseModel):
     mergeabilityStatuses: list[_Mergeability] = []
 
 
-def _git_common_dir() -> Path:
-    """Absolute path to the shared .git dir, even from inside a linked worktree."""
-    result = subprocess.run(
-        ["git", "rev-parse", "--git-common-dir"],
-        capture_output=True,
-        text=True,
-    )
-    result.check_returncode()
-    return Path(result.stdout.strip()).absolute()
-
-
-def _tracked_branches(git_dir: Path) -> set[str]:
-    """Branch names graphite tracks, from its metadata SQLite cache."""
-    db = git_dir / ".graphite_metadata.db"
-    if not db.exists():
-        return set()
-    con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
-    con.execute("PRAGMA busy_timeout = 1000")  # graphite may be mid-write
-    try:
-        rows = con.execute("SELECT branch_name FROM branch_metadata").fetchall()
-    finally:
-        con.close()
-    return {row[0] for row in rows}
-
-
-def _pr_info_by_branch(git_dir: Path) -> dict[str, GraphiteInfo]:
-    """Per-branch PR status, parsed from graphite's `.graphite_pr_info` cache."""
-    path = git_dir / ".graphite_pr_info"
-    if not path.exists():
-        return {}
-    parsed = _PrInfoFile.model_validate_json(path.read_text())
-    mergeability = {m.prNumber: m.mergeabilityStatus for m in parsed.mergeabilityStatuses}
-    return {
-        pr.headRefName: GraphiteInfo(
-            status=_classify(pr, mergeability.get(pr.prNumber, "")),
-            pr_url=pr.url,
-        )
-        for pr in parsed.prInfos
-    }
-
-
 def _classify(pr: _PrInfo, mergeability: str) -> GraphiteStatus:
     if pr.state == "MERGED" or mergeability == "MERGED":
         return GraphiteStatus.merged
@@ -101,9 +60,27 @@ def fetch_all_graphite_info() -> dict[str, GraphiteInfo]:
     are untracked by graphite. Replaces a per-worktree `gt branch info` (and the
     earlier single `gt log`) with plain file reads.
     """
-    git_dir = _git_common_dir()
-    tracked = _tracked_branches(git_dir)
+    result = subprocess.run(["git", "rev-parse", "--git-common-dir"], capture_output=True, text=True)
+    result.check_returncode()
+    git_dir = Path(result.stdout.strip()).absolute()
+    db = git_dir / ".graphite_metadata.db"
+    if not db.exists():
+        return {}
+    con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+    con.execute("PRAGMA busy_timeout = 1000")
+    try:
+        tracked = {row[0] for row in con.execute("SELECT branch_name FROM branch_metadata").fetchall()}
+    finally:
+        con.close()
     if not tracked:
         return {}
-    pr_info = _pr_info_by_branch(git_dir)
+    path = git_dir / ".graphite_pr_info"
+    pr_info = {}
+    if path.exists():
+        parsed = _PrInfoFile.model_validate_json(path.read_text())
+        mergeability = {item.prNumber: item.mergeabilityStatus for item in parsed.mergeabilityStatuses}
+        pr_info = {
+            pr.headRefName: GraphiteInfo(status=_classify(pr, mergeability.get(pr.prNumber, "")), pr_url=pr.url)
+            for pr in parsed.prInfos
+        }
     return {branch: pr_info.get(branch, GraphiteInfo(status=GraphiteStatus.no_pr)) for branch in tracked}
