@@ -5,27 +5,11 @@ from rich.console import Console
 from rich.table import Table
 
 from softmaxwt.app import app
-from softmaxwt.claude import ClaudeAgent, list_claude_agents
+from softmaxwt.claude import list_claude_agents
 from softmaxwt.graphite import GraphiteStatus, fetch_all_graphite_info
 from softmaxwt.isolation.common import IsolatedSession
 from softmaxwt.isolation.registry import all_isolation_backends
 from softmaxwt.worktree import Worktree, list_worktrees
-
-
-def _dirty_col(wt: Worktree) -> str:
-    stats = wt.uncommitted_diff_stats()
-    if stats is None:
-        return "[dim]-[/]"
-    return f"[bold]{stats.files} files[/] [green]+{stats.insertions}[/]/[red]-{stats.deletions}[/]"
-
-
-def _unpushed_col(wt: Worktree) -> str:
-    # Commits that exist only on this machine: ahead-of-upstream when the branch
-    # has one, ahead-of-trunk (squash-merge aware) when it was never pushed.
-    local = wt.unmerged_commits() if wt.has_no_upstream() else wt.unpushed_commits()
-    if not local:
-        return "[dim]-[/]"
-    return f"[yellow]{len(local)} commit{'s' if len(local) > 1 else ''}[/]"
 
 
 def _sync_col(wt: Worktree) -> str:
@@ -41,12 +25,6 @@ def _sync_col(wt: Worktree) -> str:
             return f"[link={info.pr_url}][blue underline]PR open[/][/link]"
         case GraphiteStatus.no_pr:
             return "[yellow]no PR[/]"
-
-
-def _agent_str(agent: ClaudeAgent) -> str:
-    if agent.is_active:
-        return f"[green]{agent.label} ({agent.activity})[/]"
-    return f"{agent.label} ({agent.activity})"
 
 
 @app.command()
@@ -75,7 +53,18 @@ def ls(
     def _git_cols(wt: Worktree) -> tuple[str, str]:
         if not wt.path.exists():
             return "", ""
-        return _dirty_col(wt), _unpushed_col(wt)
+        stats = wt.uncommitted_diff_stats()
+        dirty = "[dim]-[/]"
+        if stats is not None:
+            dirty = f"[bold]{stats.files} files[/] [green]+{stats.insertions}[/]/[red]-{stats.deletions}[/]"
+        if wt.has_no_upstream():
+            local = wt.unmerged_commits()
+        else:
+            local = wt.unpushed_commits()
+        unpushed = "[dim]-[/]"
+        if local:
+            unpushed = f"[yellow]{len(local)} commit{'s' if len(local) > 1 else ''}[/]"
+        return dirty, unpushed
 
     with ThreadPoolExecutor(max_workers=len(worktrees)) as pool:
         git_cols = list(pool.map(_git_cols, worktrees))
@@ -99,7 +88,11 @@ def ls(
 
         for wt in worktrees:
             cells = [s.description() for s in sessions_by_path.get(str(wt.path), [])]
-            cells += [_agent_str(a) for a in agents_by_path.get(str(wt.path), [])]
+            for agent in agents_by_path.get(str(wt.path), []):
+                text = f"{agent.label} ({agent.activity})"
+                if agent.is_active:
+                    text = f"[green]{text}[/]"
+                cells.append(text)
             session_cols.append(", ".join(cells) if cells else "[dim]-[/]")
 
     table = Table(box=None, pad_edge=False)

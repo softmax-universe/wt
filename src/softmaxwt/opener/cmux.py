@@ -16,8 +16,6 @@ from softmaxwt.shells import combine_scripts
 _SPLIT_DIRECTION = {"horizontal": "right", "vertical": "down"}
 
 
-# --- thin cmux CLI wrappers (monkeypatched in tests) ---------------------------
-#
 # Refs are NEVER scraped from a mutating command's stdout — the CLI contract only
 # guarantees stable output for --json commands. New surfaces are discovered by
 # diffing `list-panes --json` state, and the new workspace by its cwd.
@@ -81,9 +79,6 @@ def _close_workspace(workspace: str) -> None:
 
 def _bool(value: bool) -> str:
     return "true" if value else "false"
-
-
-# --- opener --------------------------------------------------------------------
 
 
 def build_commands(

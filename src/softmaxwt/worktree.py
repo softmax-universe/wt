@@ -81,7 +81,8 @@ class Worktree:
 
     def unmerged_commits(self) -> list[str]:
         """Commit subjects on branch not in the trunk (handles squash-merges too)."""
-        if self._is_graphite_merged():
+        info = self.graphite_info
+        if info is not None and info.status == GraphiteStatus.merged:
             return []
         result = subprocess.run(
             ["git", "log", "--oneline", f"origin/{trunk_branch()}..{self.branch}"],
@@ -92,17 +93,9 @@ class Worktree:
         if result.returncode != 0:
             return []
         commits = [line for line in result.stdout.strip().splitlines() if line]
-        if commits and self._is_squash_merged():
-            return []
-        return commits
+        if not commits:
+            return commits
 
-    def _is_graphite_merged(self) -> bool:
-        """Check if graphite considers this branch merged (handles merge queue squash-merges)."""
-        info = self.graphite_info
-        return info is not None and info.status == GraphiteStatus.merged
-
-    def _is_squash_merged(self) -> bool:
-        """Check if branch content is already in the trunk (tree comparison fallback)."""
         tree_result = subprocess.run(
             ["git", "merge-tree", "--write-tree", f"origin/{trunk_branch()}", self.branch],
             capture_output=True,
@@ -110,7 +103,7 @@ class Worktree:
             cwd=self._query_cwd,
         )
         if tree_result.returncode != 0:
-            return False
+            return commits
         merged_tree = tree_result.stdout.strip().splitlines()[0]
         main_tree = subprocess.run(
             ["git", "rev-parse", f"origin/{trunk_branch()}^{{tree}}"],
@@ -119,8 +112,8 @@ class Worktree:
             cwd=self._query_cwd,
         )
         if main_tree.returncode != 0:
-            return False
-        return merged_tree == main_tree.stdout.strip()
+            return commits
+        return [] if merged_tree == main_tree.stdout.strip() else commits
 
     @cached_property
     def graphite_info(self) -> GraphiteInfo | None:

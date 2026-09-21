@@ -265,29 +265,6 @@ class Config(_ConfigModel):
         path.write_text(yaml.safe_dump(self.model_dump(mode="json", exclude_none=True), sort_keys=True))
 
 
-def _apply_opts(opener: OpenerConfig, opts: list[str]) -> OpenerConfig:
-    # Values stay as strings and lean on pydantic coercion ("true"->bool,
-    # "claude"->ShellType). No tolerant context here, so an unknown key fails
-    # loudly — a typo in an explicit `-o` flag is a mistake, not a forward-compat
-    # config. Reaches the opener's top-level scalar fields only — not nested
-    # `surfaces`.
-    data = opener.model_dump(mode="json")
-    for opt in opts:
-        if "=" not in opt:
-            raise ConfigError(f"Invalid override {opt!r}: expected key=value")
-        key, value = opt.split("=", 1)
-        data[key] = value
-    try:
-        return _OPENER_ADAPTER.validate_python(data)
-    except ValidationError as exc:
-        fields = ", ".join(sorted(f for f in opener.__class__.model_fields if f != "type"))
-        # loc[0] is the discriminated-union tag (the opener type); the field, if
-        # any, follows. Field-level errors get a "field: msg" prefix; model-level
-        # ones (unknown key) carry the field in their message already.
-        details = "; ".join(f"{e['loc'][1]}: {e['msg']}" if len(e["loc"]) > 1 else e["msg"] for e in exc.errors())
-        raise ConfigError(f"Invalid -o override ({details}). Valid fields for {opener.type.value}: {fields}") from exc
-
-
 def resolve_profile(
     profile: str | None = None,
     opener: OpenerName | None = None,
@@ -315,4 +292,22 @@ def resolve_profile(
             known = ", ".join(sorted(config.profiles)) or "(none)"
             raise ValueError(f"Unknown profile {name!r}. Known profiles: {known}")
 
-    return base.model_copy(update={"opener": _apply_opts(base.opener, opts or [])})
+    # Values stay as strings and lean on pydantic coercion. Overrides reach only
+    # the opener's top-level scalar fields, not nested surfaces.
+    data = base.opener.model_dump(mode="json")
+    for opt in opts or []:
+        if "=" not in opt:
+            raise ConfigError(f"Invalid override {opt!r}: expected key=value")
+        key, value = opt.split("=", 1)
+        data[key] = value
+    try:
+        resolved = _OPENER_ADAPTER.validate_python(data)
+    except ValidationError as exc:
+        fields = ", ".join(sorted(f for f in base.opener.__class__.model_fields if f != "type"))
+        details = "; ".join(
+            f"{error['loc'][1]}: {error['msg']}" if len(error["loc"]) > 1 else error["msg"] for error in exc.errors()
+        )
+        raise ConfigError(
+            f"Invalid -o override ({details}). Valid fields for {base.opener.type.value}: {fields}"
+        ) from exc
+    return base.model_copy(update={"opener": resolved})
