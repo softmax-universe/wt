@@ -17,12 +17,10 @@ def _no_sessions(*_args, **_kwargs):
 
 @patch("softmaxwt.command.ls.list_claude_agents", _no_sessions)
 class TestLs:
-    @patch("softmaxwt.isolation.nono.NonoBackend.list_sessions", _no_sessions)
     def test_empty(self, git_repo: Path):
         result = runner.invoke(app, ["ls"])
         assert "No worktrees found" in result.output
 
-    @patch("softmaxwt.isolation.nono.NonoBackend.list_sessions", _no_sessions)
     def test_shows_worktree(self, git_repo: Path):
         invoke("create", "bar", "--opener", "noop", cwd=git_repo)
         result = runner.invoke(app, ["ls"])
@@ -38,6 +36,10 @@ class TestLs:
         assert "bar" in result.output
         assert "REMOVED" in result.output
 
+        with_sessions = runner.invoke(app, ["ls", "--sessions"])
+        assert with_sessions.exit_code == 0
+        assert "REMOVED" in with_sessions.output
+
     @patch("softmaxwt.isolation.nono.NonoBackend.list_sessions", _no_sessions)
     def test_shows_claude_session(self, git_repo: Path):
         invoke("create", "bar", "--opener", "noop", cwd=git_repo)
@@ -52,7 +54,6 @@ class TestLs:
             result = runner.invoke(app, ["ls", "--sessions"])
         assert "claude (busy)" in result.output
 
-    @patch("softmaxwt.isolation.nono.NonoBackend.list_sessions", _no_sessions)
     def test_default_skips_session_query(self, git_repo: Path):
         """The default (no --sessions) drops the Sessions column and never queries claude/nono."""
         invoke("create", "bar", "--opener", "noop", cwd=git_repo)

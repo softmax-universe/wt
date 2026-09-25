@@ -7,7 +7,6 @@ from rich.table import Table
 from softmaxwt.app import app
 from softmaxwt.claude import list_claude_agents
 from softmaxwt.graphite import GraphiteStatus, fetch_all_graphite_info
-from softmaxwt.isolation.common import IsolatedSession
 from softmaxwt.isolation.registry import all_isolation_backends
 from softmaxwt.worktree import Worktree, list_worktrees
 
@@ -71,29 +70,9 @@ def ls(
 
     # The Sessions column costs a `claude agents` + per-backend session query, so
     # it's opt-in: by default we skip that work and drop the column entirely.
-    session_cols: list[str] = []
     if sessions:
-        sessions_by_path: dict[str, list[IsolatedSession]] = {}
-        for backend in all_isolation_backends():
-            for wt in worktrees:
-                if wt.path.exists():
-                    for s in backend.list_sessions(wt.path):
-                        if s.status == "running":
-                            sessions_by_path.setdefault(str(wt.path), []).append(s)
-
         claude_agents = list_claude_agents()
-        agents_by_path = {
-            str(wt.path): [a for a in claude_agents if a.is_inside(wt.path)] for wt in worktrees if wt.path.exists()
-        }
-
-        for wt in worktrees:
-            cells = [s.description() for s in sessions_by_path.get(str(wt.path), [])]
-            for agent in agents_by_path.get(str(wt.path), []):
-                text = f"{agent.label} ({agent.activity})"
-                if agent.is_active:
-                    text = f"[green]{text}[/]"
-                cells.append(text)
-            session_cols.append(", ".join(cells) if cells else "[dim]-[/]")
+        backends = all_isolation_backends()
 
     table = Table(box=None, pad_edge=False)
     table.add_column("Name", style="bold")
@@ -104,13 +83,22 @@ def ls(
     if sessions:
         table.add_column("Sessions")
 
-    for i, (wt, (dirty, unpushed)) in enumerate(zip(worktrees, git_cols, strict=True)):
+    for wt, (dirty, unpushed) in zip(worktrees, git_cols, strict=True):
         if not wt.path.exists():
             row = [wt.path.name, wt.branch, "[red]REMOVED[/]", "", ""]
         else:
             row = [wt.path.name, wt.branch, dirty, unpushed, _sync_col(wt)]
-        if sessions:
-            row.append(session_cols[i] if wt.path.exists() else "")
+        if sessions and wt.path.exists():
+            cells = [
+                s.description() for backend in backends for s in backend.list_sessions(wt.path) if s.status == "running"
+            ]
+            for agent in claude_agents:
+                if agent.is_inside(wt.path):
+                    label = f"{agent.label} ({agent.activity})"
+                    cells.append(f"[green]{label}[/]" if agent.is_active else label)
+            row.append(", ".join(cells) if cells else "[dim]-[/]")
+        elif sessions:
+            row.append("")
         table.add_row(*row)
 
     Console().print(table)

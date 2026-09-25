@@ -159,10 +159,7 @@ def current_worktree_name() -> str | None:
 
 def find_worktree(name: str) -> Worktree | None:
     """Look up a worktree by directory name, returning None if not found."""
-    for wt in list_worktrees():
-        if wt.path.name == name:
-            return wt
-    return None
+    return next((wt for wt in list_worktrees() if wt.path.name == name), None)
 
 
 def branch_exists(branch: str) -> bool:
@@ -183,15 +180,12 @@ def list_worktrees() -> list[Worktree]:
     )
     result.check_returncode()
 
-    def _is_linked(path: Path) -> bool:
-        """Main worktree has .git dir; linked worktrees have a .git file."""
-        return not (path / ".git").is_dir()
-
     worktrees: list[Worktree] = []
     path: Path | None = None
     head: str | None = None
     branch: str | None = None
-    for line in result.stdout.splitlines():
+    # A final empty record handles porcelain output with or without a trailing blank line.
+    for line in [*result.stdout.splitlines(), ""]:
         if line.startswith("worktree "):
             path = Path(line.removeprefix("worktree "))
         elif line.startswith("HEAD "):
@@ -199,13 +193,10 @@ def list_worktrees() -> list[Worktree]:
         elif line.startswith("branch "):
             branch = line.removeprefix("branch refs/heads/")
         elif line == "":
-            if path and head and branch and _is_linked(path):
+            # Main worktree has a .git directory; linked worktrees have a .git file.
+            if path and head and branch and not (path / ".git").is_dir():
                 worktrees.append(Worktree(path=path, branch=branch, head=head))
             path = head = branch = None
-
-    # Flush last entry (porcelain output may not end with blank line).
-    if path and head and branch and _is_linked(path):
-        worktrees.append(Worktree(path=path, branch=branch, head=head))
 
     return worktrees
 
