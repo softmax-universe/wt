@@ -58,3 +58,11 @@ Behavior that isn't visible in `--help`:
   idle session only orphans the process, the conversation survives via `claude --resume`.
 - **ls**'s Sessions column reports isolation sessions and running Claude Code sessions (`claude agents --json`); cmux
   workspaces and zellij tabs aren't tracked.
+
+## cmux workspace construction
+
+The [cmux opener](src/softmaxwt/opener/cmux.py) builds workspaces with `new-workspace`, `new-surface`, `new-split`,
+`send`, and `send-key`. Do not replace these with `cmux --layout`: a layout containing multiple surfaces per pane has
+hung cmux at full CPU and required a force restart. That argument accepts an undocumented, unvalidated shape.
+
+Verify changes without mutating a user's running cmux session unless they explicitly authorize it.

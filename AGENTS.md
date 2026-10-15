@@ -30,7 +30,8 @@ harmlessly.
 ## Gotchas
 
 - **Never run mutating cmux commands during development** without the user's explicit go-ahead — you can hang or crash
-  their running terminal. In particular do not reintroduce `cmux --layout`; see `LESSONS.md`.
+  their running terminal. In particular do not reintroduce `cmux --layout`; see
+  [workspace construction](DESIGN.md#cmux-workspace-construction).
 - The cmux opener only scrapes state from `--json` commands; mutating commands' stdout is not a stable interface.
 - `wt destroy` must survive root-owned/read-only files left by bazel builds (`_force_remove_dir`); there's a regression
   test for it.
