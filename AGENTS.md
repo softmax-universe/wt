@@ -40,7 +40,8 @@ harmlessly.
 
 When a command fails inside the `nono` isolation mode: `nono why --path <p> --op read|write` (or `--host`/`--port`)
 explains a denial; `nono learn -- <cmd>` traces what a command actually accesses (needs `sudo` on macOS);
-`nono audit list --recent 5` reviews past sessions; `--dry-run` previews grants; `-v/-vv` for detail. Sensitive paths
-(`~/.ssh`, `~/.aws`, shell dotfiles, …) are always blocked regardless of flags. For profile authoring, run
-`nono profile guide`. The sandbox profile name comes from `$WT_NONO_PROFILE` (`isolation/nono.py`); nono mode refuses to
-run without it.
+`nono audit list --recent 5` reviews past sessions; `--dry-run` previews grants; `-v/-vv` for detail. For profile
+authoring, run `nono profile guide`. Review the profile's filesystem grants and deny overrides for access to credentials
+such as `~/.ssh`, `~/.aws`, and shell configuration. The sandbox profile name comes from `$WT_NONO_PROFILE`
+(`isolation/nono.py`); nono mode refuses to run without it. Install nono separately and select a profile you have
+reviewed; `wt` does not install sandbox profiles.
