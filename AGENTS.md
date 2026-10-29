@@ -21,8 +21,9 @@ harmlessly.
 ## Source layout
 
 - `command/` — one module per CLI command, self-registering on import (wired in `cli.py`).
-- `opener/` — how a worktree is surfaced (inplace/cmux/zellij/noop...); registry + `Opener` ABC in `common.py`.
-- `isolation/` — sandbox backends (raw/nono); same registry shape as opener.
+- `opener/` — how a worktree is surfaced (inplace/cmux/zellij/noop...); module registry + structural `Opener` protocol
+  in `common.py`.
+- `isolation/` — sandbox backends (raw/nono); class registry + `IsolationBackend` ABC in `common.py`.
 - `config.py` — profiles, YAML config, `resolve_profile` precedence.
 - `graphite.py` — reads graphite's data.
 - `worktree.py` — `git` subprocess wrappers and parsing.

@@ -5,7 +5,7 @@ import typer
 from softmaxwt.app import app
 from softmaxwt.config import InplaceOpenerConfig
 from softmaxwt.isolation.common import IsolationMode
-from softmaxwt.opener.inplace import InplaceOpener
+from softmaxwt.opener import inplace
 from softmaxwt.shells import ShellType
 from softmaxwt.worktree import complete_worktree_name, current_worktree_name, git_root
 
@@ -35,4 +35,4 @@ def attach(
         raise typer.Exit(1)
 
     config = InplaceOpenerConfig(shell=shell, mode=mode)
-    InplaceOpener().open(root, worktree_path, name, config)
+    inplace.open(root, worktree_path, name, config)

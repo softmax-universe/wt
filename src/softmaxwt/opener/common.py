@@ -1,12 +1,14 @@
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
+
+from softmaxwt.isolation.registry import get_isolation_backend
+from softmaxwt.shells import combine_scripts
 
 if TYPE_CHECKING:
-    from softmaxwt.config import OpenerConfig
+    from softmaxwt.config import CmuxSurface, OpenerConfig, ZellijSurface
 
 
 class OpenerName(str, Enum):
@@ -18,7 +20,7 @@ class OpenerName(str, Enum):
     noop = "noop"
 
 
-class Opener(ABC):
+class Opener(Protocol):
     """Controls how a worktree is presented to the user once created.
 
     When the opener can tell a worktree is already open, `open` may behave
@@ -29,9 +31,8 @@ class Opener(ABC):
     # concurrently with opening (e.g. in its own cmux surface). Openers that exec
     # away (inplace) or surface nothing (noop) can't, so `create` runs it
     # synchronously for them.
-    hosts_background_init: bool = False
+    hosts_background_init: bool
 
-    @abstractmethod
     def open(
         self,
         root: Path,
@@ -48,5 +49,24 @@ class Opener(ABC):
         is the profile's `hooks.surface_init` script, run inside every surface
         before its command — on create and open alike."""
 
-    def close(self, root: Path, worktree_path: Path, name: str) -> None:
-        return None
+    def close(self, root: Path, worktree_path: Path, name: str) -> None: ...
+
+
+def build_surface_commands(
+    root: Path,
+    worktree_path: Path,
+    name: str,
+    surfaces: list[CmuxSurface] | list[ZellijSurface],
+    surface_init: str | None = None,
+) -> list[list[str]]:
+    """Argv per surface, with profile init before its own init inside isolation.
+
+    Openers choose how to transport this argv: cmux needs a shell string, while
+    zellij accepts argv after --.
+    """
+    return [
+        get_isolation_backend(surface.mode).enter_command(
+            root, worktree_path, name, surface.shell, init=combine_scripts(surface_init, surface.init)
+        )
+        for surface in surfaces
+    ]

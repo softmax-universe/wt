@@ -20,6 +20,10 @@ Conceptually (not yet built):
 The opener is the axis that decides _how_ the worktree is surfaced; it **composes with** the other two rather than
 replacing them (a cmux surface is itself a `(shell, isolation_mode)` pair).
 
+Openers are stateless implementation modules satisfying the `Opener` protocol. The registry selects a module; isolation
+backends remain session-aware classes. Shared surface construction produces argv, which each opener transports using its
+terminal interface.
+
 ## Profile resolution
 
 A **profile** is a named bundle of how-to-open-a-worktree settings: one opener (discriminated on its `type` field) plus
