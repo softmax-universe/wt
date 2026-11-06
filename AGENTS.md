@@ -3,9 +3,9 @@
 CLI for isolated git worktree sessions (`wt` entry point). User docs in `README.md`, architecture in `DESIGN.md`.
 Pure-Python package; minimal deps.
 
-This directory is mirrored to the public [Metta-AI/wt](https://github.com/Metta-AI/wt) repo; development happens in the
-Softmax monorepo. Pull requests on the mirror are welcome; they are applied to the monorepo and close once the change
-lands.
+This directory is mirrored to the public [softmax-universe/wt](https://github.com/softmax-universe/wt) repo; development
+happens in the Softmax monorepo. Pull requests on the mirror are welcome; they are applied to the monorepo and close
+once the change lands.
 
 ## Tests & lint
 

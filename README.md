@@ -130,6 +130,6 @@ default isolation is `raw`, but it can change.
 
 ## Development
 
-`wt` is developed in the Softmax monorepo and mirrored to [Metta-AI/wt](https://github.com/Metta-AI/wt) with Copybara.
-Issues and pull requests on the mirror are welcome — maintainers import accepted changes into the monorepo. Every file
-in the mirror is overwritten on sync, so don't commit to it directly.
+`wt` is developed in the Softmax monorepo and mirrored to [softmax-universe/wt](https://github.com/softmax-universe/wt)
+with Copybara. Issues and pull requests on the mirror are welcome — maintainers import accepted changes into the
+monorepo. Every file in the mirror is overwritten on sync, so don't commit to it directly.
